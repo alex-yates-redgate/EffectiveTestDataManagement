@@ -1,0 +1,313 @@
+# data-refresh-pipeline.yml
+# ===========================
+# Data Refresh Pipeline - Masked Production Data to Dev/Test
+# Effective Test Data Management Demo - Data Ceili 2026
+# ===========================
+#
+# This pipeline:
+# 1. Creates a staging copy of Production
+# 2. Applies data masking using dbatools
+# 3. Validates masking coverage against classifications
+# 4. Restores masked data to Dev and Test environments
+#
+# Run this manually when dev/test needs fresh (but safe!) data
+
+name: DataRefresh-$(Build.BuildId)
+
+trigger: none  # Manual trigger only
+
+schedules:
+  - cron: '0 6 * * 0'  # Weekly on Sunday at 6 AM (optional)
+    displayName: 'Weekly Data Refresh'
+    branches:
+      include:
+        - main
+    always: true
+
+pool:
+  name: Default  # Use your self-hosted agent pool name
+
+variables:
+  SQL_INSTANCE: 'localhost'
+  SOURCE_DATABASE: 'Northwind_Prod'
+  STAGING_DATABASE: 'Northwind_Staging'
+  DEV_DATABASE: 'Northwind_Dev'
+  TEST_DATABASE: 'Northwind_Test'
+  WORKING_DIRECTORY: $(System.DefaultWorkingDirectory)
+  BACKUP_PATH: 'C:\temp\northwind_backups'
+
+stages:
+# ============================================
+# STAGE 1: Create Staging Copy
+# ============================================
+  - stage: CreateStaging
+    displayName: 'Create Staging Copy'
+    jobs:
+      - job: BackupAndRestore
+        displayName: 'Backup Prod → Restore to Staging'
+        steps:
+          - task: PowerShell@2
+            displayName: 'Ensure Backup Directory Exists'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $backupPath = "$(BACKUP_PATH)"
+                if (-not (Test-Path $backupPath)) {
+                    New-Item -ItemType Directory -Path $backupPath -Force | Out-Null
+                    Write-Host "Created backup directory: $backupPath"
+                }
+
+          - task: PowerShell@2
+            displayName: 'Backup Production Database'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $backupFile = "$(BACKUP_PATH)\$(SOURCE_DATABASE)_$(Build.BuildId).bak"
+                
+                Write-Host "Backing up $(SOURCE_DATABASE) to $backupFile..."
+                
+                Backup-DbaDatabase `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Database "$(SOURCE_DATABASE)" `
+                    -Path "$(BACKUP_PATH)" `
+                    -FilePath $backupFile `
+                    -Type Full `
+                    -CompressBackup
+                
+                Write-Host "Backup complete: $backupFile"
+                
+                # Set output variable for next step
+                Write-Host "##vso[task.setvariable variable=BACKUP_FILE]$backupFile"
+
+          - task: PowerShell@2
+            displayName: 'Restore to Staging Database'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $backupFile = "$(BACKUP_PATH)\$(SOURCE_DATABASE)_$(Build.BuildId).bak"
+                
+                Write-Host "Restoring $backupFile to $(STAGING_DATABASE)..."
+                
+                # Drop staging if exists
+                $existing = Get-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -ErrorAction SilentlyContinue
+                if ($existing) {
+                    Write-Host "Dropping existing staging database..."
+                    Remove-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Confirm:$false
+                }
+                
+                # Restore with new name
+                Restore-DbaDatabase `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Path $backupFile `
+                    -DatabaseName "$(STAGING_DATABASE)" `
+                    -ReplaceDbNameInFile `
+                    -WithReplace
+                
+                Write-Host "Staging database ready: $(STAGING_DATABASE)"
+
+# ============================================
+# STAGE 2: Apply Masking
+# ============================================
+  - stage: ApplyMasking
+    displayName: 'Apply Data Masking'
+    dependsOn: CreateStaging
+    jobs:
+      - job: MaskData
+        displayName: 'Mask Sensitive Data'
+        steps:
+          - task: PowerShell@2
+            displayName: 'Verify Classification Coverage'
+            inputs:
+              targetType: 'inline'
+              script: |
+                & "$(WORKING_DIRECTORY)\scripts\Compare-ClassificationToMasking.ps1" `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Database "$(STAGING_DATABASE)" `
+                    -FailOnGaps
+
+          - task: PowerShell@2
+            displayName: 'Apply Data Masking (dbatools)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                & "$(WORKING_DIRECTORY)\scripts\Invoke-DataMasking.ps1" `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Database "$(STAGING_DATABASE)"
+
+          - task: PowerShell@2
+            displayName: 'Verify Masking Applied'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                Write-Host "=============================================" -ForegroundColor Cyan
+                Write-Host "  Masked Data Verification" -ForegroundColor Cyan
+                Write-Host "=============================================" -ForegroundColor Cyan
+                
+                # Show sample of masked Customers
+                Write-Host ""
+                Write-Host "Sample Customers (masked):" -ForegroundColor Yellow
+                $customers = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query @"
+                    SELECT TOP 5 CustomerID, CompanyName, ContactName, Address, Phone, Email 
+                    FROM Sales.Customers
+"@
+                $customers | Format-Table -AutoSize
+                
+                # Show sample of masked Employees
+                Write-Host "Sample Employees (masked):" -ForegroundColor Yellow
+                $employees = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query @"
+                    SELECT TOP 5 EmployeeID, FirstName, LastName, HomePhone, SSN 
+                    FROM HR.Employees
+"@
+                $employees | Format-Table -AutoSize
+                
+                Write-Host "[OK] Masking verification complete" -ForegroundColor Green
+
+# ============================================
+# STAGE 3: Refresh Dev & Test
+# ============================================
+  - stage: RefreshDevTest
+    displayName: 'Refresh Dev & Test'
+    dependsOn: ApplyMasking
+    jobs:
+      - job: RefreshDev
+        displayName: 'Refresh Dev Database'
+        steps:
+          - task: PowerShell@2
+            displayName: 'Backup Staging (Masked)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $maskedBackup = "$(BACKUP_PATH)\$(STAGING_DATABASE)_masked_$(Build.BuildId).bak"
+                
+                Write-Host "Creating backup of masked staging database..."
+                
+                Backup-DbaDatabase `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Database "$(STAGING_DATABASE)" `
+                    -Path "$(BACKUP_PATH)" `
+                    -FilePath $maskedBackup `
+                    -Type Full `
+                    -CompressBackup
+                
+                Write-Host "##vso[task.setvariable variable=MASKED_BACKUP]$maskedBackup"
+
+          - task: PowerShell@2
+            displayName: 'Restore to Dev'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $maskedBackup = "$(BACKUP_PATH)\$(STAGING_DATABASE)_masked_$(Build.BuildId).bak"
+                
+                Write-Host "Restoring masked data to $(DEV_DATABASE)..."
+                
+                # Drop dev if exists
+                $existing = Get-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(DEV_DATABASE)" -ErrorAction SilentlyContinue
+                if ($existing) {
+                    Remove-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(DEV_DATABASE)" -Confirm:$false
+                }
+                
+                Restore-DbaDatabase `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Path $maskedBackup `
+                    -DatabaseName "$(DEV_DATABASE)" `
+                    -ReplaceDbNameInFile `
+                    -WithReplace
+                
+                Write-Host "[OK] Dev database refreshed with masked data!" -ForegroundColor Green
+
+      - job: RefreshTest
+        displayName: 'Refresh Test Database'
+        dependsOn: RefreshDev
+        steps:
+          - task: PowerShell@2
+            displayName: 'Restore to Test'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $maskedBackup = "$(BACKUP_PATH)\$(STAGING_DATABASE)_masked_$(Build.BuildId).bak"
+                
+                Write-Host "Restoring masked data to $(TEST_DATABASE)..."
+                
+                # Drop test if exists
+                $existing = Get-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(TEST_DATABASE)" -ErrorAction SilentlyContinue
+                if ($existing) {
+                    Remove-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(TEST_DATABASE)" -Confirm:$false
+                }
+                
+                Restore-DbaDatabase `
+                    -SqlInstance "$(SQL_INSTANCE)" `
+                    -Path $maskedBackup `
+                    -DatabaseName "$(TEST_DATABASE)" `
+                    -ReplaceDbNameInFile `
+                    -WithReplace
+                
+                Write-Host "[OK] Test database refreshed with masked data!" -ForegroundColor Green
+
+# ============================================
+# STAGE 4: Cleanup
+# ============================================
+  - stage: Cleanup
+    displayName: 'Cleanup'
+    dependsOn: RefreshDevTest
+    jobs:
+      - job: CleanupResources
+        displayName: 'Clean Up Staging & Backups'
+        steps:
+          - task: PowerShell@2
+            displayName: 'Remove Staging Database'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                Write-Host "Removing staging database..."
+                Remove-DbaDatabase -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Confirm:$false -ErrorAction SilentlyContinue
+                Write-Host "[OK] Staging database removed"
+
+          - task: PowerShell@2
+            displayName: 'Clean Up Old Backups'
+            inputs:
+              targetType: 'inline'
+              script: |
+                # Keep only backups from last 7 days
+                $cutoffDate = (Get-Date).AddDays(-7)
+                $backupPath = "$(BACKUP_PATH)"
+                
+                Write-Host "Cleaning up backups older than $cutoffDate..."
+                
+                Get-ChildItem -Path $backupPath -Filter "*.bak" | 
+                    Where-Object { $_.LastWriteTime -lt $cutoffDate } |
+                    ForEach-Object {
+                        Write-Host "  Removing: $($_.Name)"
+                        Remove-Item $_.FullName -Force
+                    }
+                
+                Write-Host "[OK] Backup cleanup complete"
+
+          - task: PowerShell@2
+            displayName: 'Summary'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Write-Host ""
+                Write-Host "=============================================" -ForegroundColor Green
+                Write-Host "  Data Refresh Complete!" -ForegroundColor Green
+                Write-Host "=============================================" -ForegroundColor Green
+                Write-Host ""
+                Write-Host "  Dev database:  $(DEV_DATABASE)  - Refreshed with masked data" -ForegroundColor White
+                Write-Host "  Test database: $(TEST_DATABASE) - Refreshed with masked data" -ForegroundColor White
+                Write-Host ""
+                Write-Host "  All PII has been masked. Safe for development use." -ForegroundColor Cyan
+                Write-Host ""

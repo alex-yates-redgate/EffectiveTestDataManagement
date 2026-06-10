@@ -1,0 +1,49 @@
+# flyway.toml
+# ===========================
+# Flyway Community Configuration for Effective Test Data Management demo
+# ===========================
+
+id = "northwind-etdm-demo"
+name = "Northwind - Effective Test Data Management"
+databaseType = "SqlServer"
+
+[flyway]
+locations = ["filesystem:migrations"]
+mixed = true
+outOfOrder = false
+validateMigrationNaming = true
+baselineOnMigrate = true
+baselineVersion = "001"
+
+# ============================================
+# Environments
+# ============================================
+
+[environments.development]
+url = "jdbc:sqlserver://localhost;databaseName=Northwind_Dev;encrypt=true;integratedSecurity=true;trustServerCertificate=true"
+displayName = "Development Database"
+
+[environments.test]
+url = "jdbc:sqlserver://localhost;databaseName=Northwind_Test;encrypt=true;integratedSecurity=true;trustServerCertificate=true"
+displayName = "Test Database"
+
+[environments.prod]
+url = "jdbc:sqlserver://localhost;databaseName=Northwind_Prod;encrypt=true;integratedSecurity=true;trustServerCertificate=true"
+displayName = "Production Database"
+
+[environments.build]
+url = "jdbc:sqlserver://localhost;databaseName=Northwind_Build;encrypt=true;integratedSecurity=true;trustServerCertificate=true"
+displayName = "Build Database"
+provisioner = "clean"
+
+[environments.shadow]
+url = "jdbc:sqlserver://localhost;databaseName=Northwind_Shadow;encrypt=true;integratedSecurity=true;trustServerCertificate=true"
+displayName = "Shadow Database"
+provisioner = "clean"
+
+# ============================================
+# Clean settings (for build/shadow only)
+# ============================================
+
+[flyway.sqlserver.clean]
+mode = "all"

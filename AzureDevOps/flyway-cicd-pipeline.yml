@@ -1,0 +1,242 @@
+# flyway-cicd-pipeline.yml
+# ===========================
+# Flyway Community CI/CD Pipeline with Classification Validation
+# Effective Test Data Management Demo - Data Ceili 2026
+# ===========================
+#
+# This pipeline:
+# 1. Build stage: Creates DB from scratch, runs all migrations, validates classifications
+# 2. Test stage: Deploys to Test environment
+# 3. Prod stage: Deploys to Production (with manual approval)
+
+name: Flyway-CICD-$(Build.BuildId)
+
+trigger:
+  branches:
+    include:
+      - main
+  paths:
+    include:
+      - migrations/*
+
+pool:
+  name: Default  # Use your self-hosted agent pool name
+
+variables:
+  WORKING_DIRECTORY: $(System.DefaultWorkingDirectory)
+  FLYWAY_INSTALL_DIRECTORY: 'C:\Flyway'
+
+# ============================================
+# BUILD STAGE
+# ============================================
+stages:
+  - stage: Build
+    displayName: 'Build & Validate'
+    jobs:
+      - job: BuildAndValidate
+        displayName: 'Build from Scratch + Validate Classifications'
+        steps:
+          # Step 1: Ensure Flyway is available
+          - task: PowerShell@2
+            displayName: 'Verify Flyway Installation'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
+                if (Test-Path $flywayPath) {
+                    Write-Host "Flyway found at $flywayPath"
+                    & $flywayPath --version
+                } else {
+                    Write-Host "##vso[task.logissue type=error]Flyway not found. Run Setup-Demo.ps1 first."
+                    exit 1
+                }
+
+          # Step 2: Create/Clean Build database
+          - task: PowerShell@2
+            displayName: 'Create Build Database'
+            inputs:
+              targetType: 'inline'
+              script: |
+                Import-Module dbatools -Force
+                
+                $dbName = "Northwind_Build"
+                $sqlInstance = "localhost"
+                
+                # Drop if exists
+                $existing = Get-DbaDatabase -SqlInstance $sqlInstance -Database $dbName -ErrorAction SilentlyContinue
+                if ($existing) {
+                    Write-Host "Dropping existing $dbName..."
+                    Remove-DbaDatabase -SqlInstance $sqlInstance -Database $dbName -Confirm:$false
+                }
+                
+                # Create fresh database
+                Write-Host "Creating $dbName..."
+                New-DbaDatabase -SqlInstance $sqlInstance -Name $dbName | Out-Null
+                
+                # Apply base schema
+                Write-Host "Applying schema..."
+                $schemaScript = Get-Content -Path "$(WORKING_DIRECTORY)\database\Northwind-Schema.sql" -Raw
+                Invoke-DbaQuery -SqlInstance $sqlInstance -Database $dbName -Query $schemaScript
+                
+                Write-Host "Build database ready!"
+
+          # Step 3: Run Flyway migrate
+          - task: PowerShell@2
+            displayName: 'Flyway Migrate (Build)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
+                
+                & $flywayPath `
+                    info migrate info `
+                    -environment="build" `
+                    -configFiles="$(WORKING_DIRECTORY)\flyway.toml" `
+                    -locations="filesystem:$(WORKING_DIRECTORY)\migrations" `
+                    -baselineOnMigrate=true
+
+          # Step 4: Apply Classifications (simulates what should happen in real workflow)
+          - task: PowerShell@2
+            displayName: 'Apply Data Classifications'
+            inputs:
+              targetType: 'inline'
+              script: |
+                & "$(WORKING_DIRECTORY)\scripts\Apply-Classifications.ps1" `
+                    -SqlInstance "localhost" `
+                    -Database "Northwind_Build"
+
+          # Step 5: Validate Classifications (THE KEY STEP!)
+          - task: PowerShell@2
+            displayName: 'Validate All Columns Classified'
+            inputs:
+              targetType: 'inline'
+              script: |
+                & "$(WORKING_DIRECTORY)\scripts\Validate-Classifications.ps1" `
+                    -SqlInstance "localhost" `
+                    -Database "Northwind_Build" `
+                    -FailOnMissing
+
+          # Step 6: Cross-reference with masking config
+          - task: PowerShell@2
+            displayName: 'Validate Masking Coverage'
+            inputs:
+              targetType: 'inline'
+              script: |
+                & "$(WORKING_DIRECTORY)\scripts\Compare-ClassificationToMasking.ps1" `
+                    -SqlInstance "localhost" `
+                    -Database "Northwind_Build" `
+                    -FailOnGaps
+
+          # Step 7: Publish artifacts for deployment stages
+          - task: CopyFiles@2
+            displayName: 'Copy Artifacts'
+            inputs:
+              SourceFolder: '$(WORKING_DIRECTORY)'
+              Contents: |
+                migrations/**/*
+                flyway.toml
+                scripts/**/*
+                masking/**/*
+              TargetFolder: '$(Build.ArtifactStagingDirectory)'
+
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish Build Artifacts'
+            inputs:
+              ArtifactName: 'flyway-artifacts'
+              PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+
+# ============================================
+# TEST STAGE
+# ============================================
+  - stage: Test
+    displayName: 'Deploy to Test'
+    dependsOn: Build
+    jobs:
+      - job: DeployToTest
+        displayName: 'Deploy Migrations to Test'
+        steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download Artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'flyway-artifacts'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: PowerShell@2
+            displayName: 'Flyway Migrate (Test)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
+                $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
+                
+                & $flywayPath `
+                    info migrate info `
+                    -environment="test" `
+                    -configFiles="$artifactPath\flyway.toml" `
+                    -locations="filesystem:$artifactPath\migrations" `
+                    -baselineOnMigrate=true
+
+# ============================================
+# PROD STAGE (with approval gate)
+# ============================================
+  - stage: Prod
+    displayName: 'Deploy to Production'
+    dependsOn: Test
+    jobs:
+      - job: Approval
+        displayName: 'Manual Approval'
+        pool: server
+        steps:
+          - task: ManualValidation@0
+            displayName: 'Approve Production Deployment'
+            timeoutInMinutes: 1440
+            inputs:
+              notifyUsers: ''
+              instructions: |
+                Review the migration scripts and classification validation results.
+                Approve to deploy to Production.
+
+      - job: DeployToProd
+        displayName: 'Deploy Migrations to Prod'
+        dependsOn: Approval
+        steps:
+          - task: DownloadBuildArtifacts@0
+            displayName: 'Download Artifacts'
+            inputs:
+              buildType: 'current'
+              downloadType: 'single'
+              artifactName: 'flyway-artifacts'
+              downloadPath: '$(System.ArtifactsDirectory)'
+
+          - task: PowerShell@2
+            displayName: 'Flyway Migrate (Prod)'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
+                $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
+                
+                & $flywayPath `
+                    info migrate info `
+                    -environment="prod" `
+                    -configFiles="$artifactPath\flyway.toml" `
+                    -locations="filesystem:$artifactPath\migrations" `
+                    -baselineOnMigrate=true
+                
+                Write-Host ""
+                Write-Host "=============================================" -ForegroundColor Green
+                Write-Host "  Production deployment complete!" -ForegroundColor Green
+                Write-Host "=============================================" -ForegroundColor Green
+
+          # Apply classifications to Prod
+          - task: PowerShell@2
+            displayName: 'Apply Classifications to Prod'
+            inputs:
+              targetType: 'inline'
+              script: |
+                $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
+                & "$artifactPath\scripts\Apply-Classifications.ps1" `
+                    -SqlInstance "localhost" `
+                    -Database "Northwind_Prod"

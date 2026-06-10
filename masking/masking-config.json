@@ -1,0 +1,187 @@
+{
+    "Name": "Northwind Masking Configuration",
+    "Type": "DataMaskingConfig",
+    "Tables": [
+        {
+            "Schema": "Sales",
+            "Name": "Customers",
+            "Columns": [
+                {
+                    "Name": "ContactName",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Name",
+                    "SubType": "FullName",
+                    "Nullable": true
+                },
+                {
+                    "Name": "Address",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "StreetAddress",
+                    "Nullable": true
+                },
+                {
+                    "Name": "PostalCode",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "Zipcode",
+                    "Nullable": true
+                },
+                {
+                    "Name": "Phone",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Shuffle",
+                    "SubType": null,
+                    "Nullable": true
+                },
+                {
+                    "Name": "Fax",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Shuffle",
+                    "SubType": null,
+                    "Nullable": true
+                },
+                {
+                    "Name": "Email",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Internet",
+                    "SubType": "Email",
+                    "Nullable": true
+                }
+            ]
+        },
+        {
+            "Schema": "HR",
+            "Name": "Employees",
+            "Columns": [
+                {
+                    "Name": "FirstName",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Name",
+                    "SubType": "FirstName",
+                    "Nullable": false
+                },
+                {
+                    "Name": "LastName",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Name",
+                    "SubType": "LastName",
+                    "Nullable": false
+                },
+                {
+                    "Name": "BirthDate",
+                    "ColumnType": "datetime",
+                    "MaskingType": "Date",
+                    "SubType": "Past",
+                    "Nullable": true,
+                    "Min": "1950-01-01",
+                    "Max": "2000-12-31"
+                },
+                {
+                    "Name": "Address",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "StreetAddress",
+                    "Nullable": true
+                },
+                {
+                    "Name": "PostalCode",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "Zipcode",
+                    "Nullable": true
+                },
+                {
+                    "Name": "HomePhone",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Shuffle",
+                    "SubType": null,
+                    "Nullable": true
+                },
+                {
+                    "Name": "Email",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Internet",
+                    "SubType": "Email",
+                    "Nullable": true
+                },
+                {
+                    "Name": "SSN",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "RandomString",
+                    "SubType": null,
+                    "Nullable": true,
+                    "Format": "###-##-####"
+                }
+            ]
+        },
+        {
+            "Schema": "Inventory",
+            "Name": "Suppliers",
+            "Columns": [
+                {
+                    "Name": "ContactName",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Name",
+                    "SubType": "FullName",
+                    "Nullable": true
+                },
+                {
+                    "Name": "Address",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "StreetAddress",
+                    "Nullable": true
+                },
+                {
+                    "Name": "PostalCode",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "Zipcode",
+                    "Nullable": true
+                },
+                {
+                    "Name": "Phone",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Shuffle",
+                    "SubType": null,
+                    "Nullable": true
+                },
+                {
+                    "Name": "Fax",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Shuffle",
+                    "SubType": null,
+                    "Nullable": true
+                }
+            ]
+        },
+        {
+            "Schema": "Sales",
+            "Name": "Orders",
+            "Columns": [
+                {
+                    "Name": "ShipName",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Name",
+                    "SubType": "FullName",
+                    "Nullable": true
+                },
+                {
+                    "Name": "ShipAddress",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "StreetAddress",
+                    "Nullable": true
+                },
+                {
+                    "Name": "ShipPostalCode",
+                    "ColumnType": "nvarchar",
+                    "MaskingType": "Address",
+                    "SubType": "Zipcode",
+                    "Nullable": true
+                }
+            ]
+        }
+    ]
+}
