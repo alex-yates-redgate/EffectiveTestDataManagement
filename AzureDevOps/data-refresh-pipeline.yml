@@ -152,18 +152,12 @@ stages:
                 # Show sample of masked Customers
                 Write-Host ""
                 Write-Host "Sample Customers (masked):" -ForegroundColor Yellow
-                $customers = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query @"
-                    SELECT TOP 5 CustomerID, CompanyName, ContactName, Address, Phone, Email 
-                    FROM Sales.Customers
-"@
+                $customers = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query "SELECT TOP 5 CustomerID, CompanyName, ContactName, Address, Phone, Email FROM Sales.Customers"
                 $customers | Format-Table -AutoSize
                 
                 # Show sample of masked Employees
                 Write-Host "Sample Employees (masked):" -ForegroundColor Yellow
-                $employees = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query @"
-                    SELECT TOP 5 EmployeeID, FirstName, LastName, HomePhone, SSN 
-                    FROM HR.Employees
-"@
+                $employees = Invoke-DbaQuery -SqlInstance "$(SQL_INSTANCE)" -Database "$(STAGING_DATABASE)" -Query "SELECT TOP 5 EmployeeID, FirstName, LastName, HomePhone, SSN FROM HR.Employees"
                 $employees | Format-Table -AutoSize
                 
                 Write-Host "[OK] Masking verification complete" -ForegroundColor Green
