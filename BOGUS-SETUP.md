@@ -1,116 +1,167 @@
 # Bogus Faker Library Setup for dbatools Masking
 
-## Problem
+## ⚠️ CRITICAL REQUIREMENT
 
-dbatools masking requires the **Bogus** NuGet package (faker library) to generate randomized masked values.  Without Bogus, masking runs but produces empty values:
+**dbatools masking REQUIRES Administrator privileges to set up.**
+
+The Bogus faker library must be installed to:
+```
+C:\Program Files\WindowsPowerShell\Modules\dbatools\<version>\library\Bogus.dll
+```
+
+This is a **system-protected folder** that requires admin access.
+
+## Problem Without Bogus
+
+Without Bogus installed, masking runs but produces empty values:
 
 ```
 UPDATE [Sales].[Customers] SET [ContactName] = ISNULL(, '')  -- Empty value!
 ```
 
-This happens even when masking config is valid and dbatools completes successfully.
+This happens even when:
+- Masking config validates successfully ✓
+- dbatools completes without errors ✓
+- Test-DbaDbDataMaskingConfig passes ✓
 
-## Root Cause
+The issue only appears at runtime when dbatools tries to generate faker data.
 
-The Bogus library must be installed in dbatools' library folder:
-- **Required path**: `C:\Program Files\WindowsPowerShell\Modules\dbatools\<version>\library\`
-- **Issue**: This path requires **Administrator privileges** to write to
+## Setup Instructions
 
-## Solution
+### Step 1: Run Admin Setup Script (One-Time)
 
-### Option 1: Install as Administrator (Recommended)
+On your build agent or local machine, run PowerShell **as Administrator**:
 
-1. **One-time setup** on the build agent:
-   ```powershell
-   # Run as Administrator
-   .\scripts\Install-BogusLibrary-Admin.ps1
-   ```
+```powershell
+# Right-click PowerShell → Run as administrator
+cd c:\git\EffectiveTestDataManagement\scripts
+.\AdminSetup-Bogus.ps1
+```
 
-2. **Verify installation**:
-   ```powershell
-   ls "C:\Program Files\WindowsPowerShell\Modules\dbatools\library\"
-   ```
-   Should show `Bogus.dll`
+**Output should show:**
+```
+[SUCCESS] Bogus installed successfully!
+Name         Size(KB)
+----         --------
+Bogus.dll    1234.56
 
-3. **Masking will now work** with faker data generation
+dbatools masking is now ready for production use.
+```
 
-### Option 2: Configure Pipeline to Run Setup Step as Admin
+### Step 2: Verify Installation
 
-Edit `AzureDevOps/data-refresh-pipeline.yml`:
+```powershell
+ls "C:\Program Files\WindowsPowerShell\Modules\dbatools\2.1.18\library\" | ls Bogus.dll
+```
+
+Should return the Bogus.dll file.
+
+### Step 3: Restart Services
+
+After installation:
+- Close and reopen PowerShell
+- Restart the Azure DevOps agent (if using self-hosted)
+
+### Step 4: Run Masking Pipeline
+
+Masking will now generate real faker data like:
+```
+CustomerID  ContactName              Phone
+-----------  -----------------------  ----------------
+ALFKI        Dr. Ulises Cronin       (123) 456-7890
+ANATR        Ms. Ava Breitling       (987) 654-3210
+```
+
+## Test the Installation
+
+After restarting PowerShell, verify masking works:
+
+```powershell
+cd c:\git\EffectiveTestDataManagement\scripts
+.\Test-Masking.ps1
+```
+
+**Success looks like:**
+```
+Testing masking config validation...
+Validation passed!
+
+Invoking masking with verbose output...
+[SUCCESS] Masking completed!
+
+Checking masked data...
+CustomerID  ContactName              Phone           Email
+-----------  -----------------------  ---------------  -------------------------
+ALFKI        Dr. Ulises Cronin       (123) 456-7890   ava.gibson@example.com
+ANATR        Ms. Ava Breitling       (987) 654-3210   mason.smith@example.com
+```
+
+**NOT like:**
+```
+[WARNING] Failure | The system cannot find the file specified
+UPDATE [Sales].[Customers] SET [ContactName] = ISNULL(, '')  -- Empty!
+```
+
+## Fail-Safe Design (If Bogus Not Available)
+
+Even without Bogus, the pipeline is designed safely:
+
+| Stage | Outcome |
+|-------|---------|
+| Masking runs | ✓ No errors |
+| Generates UPDATE statements | ✗ Empty values |
+| Sentinel check validates data | ✓ Detects unmasked |
+| Restore to Dev/Test blocked | ✓ Prevents data leak |
+
+This ensures **zero risk of unmasked production data** reaching development environments.
+
+## Azure DevOps Pipeline Integration
+
+To include the setup in your CI/CD pipeline, edit `AzureDevOps/data-refresh-pipeline.yml`:
 
 ```yaml
 jobs:
   - job: SetupBogus
     displayName: Setup Bogus Faker Library
     pool:
-      name: Default  # Or your self-hosted pool
+      name: Default  # Your self-hosted agent pool
     steps:
+      - checkout: self
       - task: PowerShell@2
-        displayName: Install Bogus
+        displayName: Install Bogus (Admin)
         inputs:
           targetType: 'filePath'
-          filePath: 'scripts/Install-BogusLibrary-Admin.ps1'
+          filePath: 'scripts/AdminSetup-Bogus.ps1'
           pwshModule: true
-        condition: succeeded()
 
   - job: CreateStaging
-    displayName: Create Staging DB
+    displayName: Create Staging Database
     dependsOn: SetupBogus
-    # ... rest of pipeline
+    # ... rest of data refresh jobs
 ```
 
-### Option 3: Pre-configure on Build Agent
-
-If using a self-hosted agent:
-
-1. Install Bogus once manually with admin privileges
-2. Add to agent startup script to verify it's present
-
-## Verification
-
-After installation, run the test:
-
-```powershell
-cd scripts
-pwsh -File Test-Masking.ps1
-```
-
-Check output - should show masked data like:
-```
-CustomerID  ContactName        Phone       
------------  ---------------    -----------
-ALFKI        Dr. Ulises Cronin  (123) 456-7890
-```
-
-NOT empty values with ISNULL errors.
-
-## Temporary Workaround
-
-If Bogus setup is delayed, the masking pipeline will:
-1. Run without errors ✓
-2. Generate empty UPDATE statements ✗
-3. Fail sentinel check (detects unmasked data) ✓
-4. Block restore to Dev/Test ✓
-
-This is **fail-safe design** - prevents unmasked data leaks even if faker library isn't available.
+**Note:** Self-hosted agents can run with admin context using agent configuration. Contact your DevOps team if this isn't available.
 
 ## Troubleshooting
 
-**Error: "Access to the path denied"**
-- Install script must run with Administrator privileges
-- Use `Run as administrator` option for PowerShell
+| Issue | Solution |
+|-------|----------|
+| "Access to the path denied" | Run PowerShell as Administrator |
+| Script blocked by execution policy | `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser` |
+| "Bogus.dll not found" after install | Restart PowerShell and pipeline agent |
+| Masking still shows empty values | Verify: `ls C:\Program Files\WindowsPowerShell\Modules\dbatools\2.1.18\library\Bogus.dll` |
+| dbatools version mismatch | Check dbatools version: `Get-Module dbatools -ListAvailable` |
 
-**Error: "Bogus.dll not found after installation"**
-- Verify path: `C:\Program Files\WindowsPowerShell\Modules\dbatools\<version>\library\Bogus.dll`
-- dbatools version must match the path (e.g., `2.1.18`)
+## Scripts
 
-**Masking still produces empty values**
-- Try restarting PowerShell or the pipeline agent
-- Clear PowerShell module cache: `Remove-Module dbatools -Force`
+- **AdminSetup-Bogus.ps1** - Main setup (run as admin once)
+- **Install-BogusLibrary.ps1** - Alternative user-level install (won't help for dbatools)
+- **Install-BogusLibrary-Admin.ps1** - Legacy admin installer
+- **Test-Masking.ps1** - Verify masking produces real faker data
+- **Invoke-DataMasking.ps1** - Main masking script (called by pipeline)
 
-## Related Files
+## Related Documentation
 
-- `scripts/Install-BogusLibrary.ps1` - User-level install (no admin needed)
-- `scripts/Install-BogusLibrary-Admin.ps1` - System-level install (admin required)
-- `scripts/Test-Masking.ps1` - Verify masking works
-- `scripts/Invoke-DataMasking.ps1` - Main masking script (used in pipeline)
+- [dbatools Data Masking](https://docs.dbatools.io/#Invoke-DbaDbDataMasking)
+- [Bogus Faker Library](https://github.com/bchavez/Bogus)
+- See `PIPELINE.md` for complete data-refresh-pipeline flow
