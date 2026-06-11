@@ -2,6 +2,23 @@
 # ===========================
 # Applies data masking using dbatools Invoke-DbaDbDataMasking
 # Used in the data refresh pipeline to mask production data for dev/test
+#
+# REQUIREMENTS:
+# - dbatools module (masking feature)
+# - Bogus NuGet package (faker library for generating masked values)
+#
+# KNOWN ISSUE:
+# If masking completes but produces empty values (UPDATE SET Column = ISNULL(, '')),
+# it means Bogus.dll was not found by dbatools. This is a known dbatools issue.
+#
+# SOLUTION:
+# Option 1: Run Install-BogusLibrary.ps1 with admin privileges
+#   This installs Bogus to Program Files\WindowsPowerShell\Modules\dbatools\library
+#
+# Option 2: Run pipeline agent with admin privileges
+#   Self-hosted agents can be configured to run elevated for setup steps
+#
+# Option 3: Pre-configure Bogus on the build server before masking runs
 # ===========================
 
 param (
