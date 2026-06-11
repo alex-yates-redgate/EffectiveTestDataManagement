@@ -80,6 +80,8 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
+                $ErrorActionPreference = "Stop"
+
                 # Ensure build runs from a clean database state every time
                 & flyway `
                     clean `
