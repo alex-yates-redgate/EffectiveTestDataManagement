@@ -49,7 +49,25 @@ foreach ($row in $classifications) {
     }
 }
 
+# Only sensitive classifications require masking.
+# Explicit non-sensitive tags should be excluded from risk calculations.
+$sensitiveClassifiedColumns = @{}
+$nonSensitiveClassifiedColumns = @()
+foreach ($col in $classifiedColumns.Keys) {
+    $info = $classifiedColumns[$col]
+    $label = [string]$info.SensitivityLabel
+    $infoType = [string]$info.InformationType
+
+    if ($label -eq "Not Sensitive" -or $infoType -eq "Non-Sensitive") {
+        $nonSensitiveClassifiedColumns += $col
+    } else {
+        $sensitiveClassifiedColumns[$col] = $info
+    }
+}
+
 Write-Host "  Found $($classifiedColumns.Count) classified columns" -ForegroundColor Green
+Write-Host "  Sensitive classifications: $($sensitiveClassifiedColumns.Count)" -ForegroundColor Green
+Write-Host "  Explicit non-sensitive classifications: $($nonSensitiveClassifiedColumns.Count)" -ForegroundColor Gray
 Write-Host ""
 
 # ============================================
@@ -91,7 +109,7 @@ $maskedNotClassified = @()
 $bothClassifiedAndMasked = @()
 
 # Check classified columns that aren't masked
-foreach ($col in $classifiedColumns.Keys) {
+foreach ($col in $sensitiveClassifiedColumns.Keys) {
     if ($maskedColumns.ContainsKey($col)) {
         $bothClassifiedAndMasked += $col
     } else {
@@ -116,10 +134,10 @@ if ($bothClassifiedAndMasked.Count -gt 0) {
 Write-Host ""
 
 if ($classifiedNotMasked.Count -gt 0) {
-    Write-Host "[RISK] Classified but NOT masked: $($classifiedNotMasked.Count)" -ForegroundColor Red
+    Write-Host "[RISK] Sensitive classified but NOT masked: $($classifiedNotMasked.Count)" -ForegroundColor Red
     Write-Host "       These columns contain sensitive data but have no masking rule!" -ForegroundColor Red
     foreach ($col in $classifiedNotMasked) {
-        $info = $classifiedColumns[$col]
+        $info = $sensitiveClassifiedColumns[$col]
         Write-Host "       - $col [$($info.InformationType)]" -ForegroundColor Red
     }
     Write-Host ""
@@ -142,14 +160,16 @@ Write-Host "  Summary" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "  Total classified:     $($classifiedColumns.Count)" -ForegroundColor White
+Write-Host "  Sensitive classified: $($sensitiveClassifiedColumns.Count)" -ForegroundColor White
+Write-Host "  Non-sensitive tags:   $($nonSensitiveClassifiedColumns.Count)" -ForegroundColor White
 Write-Host "  Total masking rules:  $($maskedColumns.Count)" -ForegroundColor White
-Write-Host "  Coverage:             $($bothClassifiedAndMasked.Count) / $($classifiedColumns.Count)" -ForegroundColor White
+Write-Host "  Coverage:             $($bothClassifiedAndMasked.Count) / $($sensitiveClassifiedColumns.Count)" -ForegroundColor White
 Write-Host ""
 
 if ($classifiedNotMasked.Count -eq 0) {
-    Write-Host "[PASS] All classified columns have masking rules!" -ForegroundColor Green
+    Write-Host "[PASS] All sensitive classified columns have masking rules!" -ForegroundColor Green
 } else {
-    Write-Host "[FAIL] $($classifiedNotMasked.Count) classified columns have NO masking rules" -ForegroundColor Red
+    Write-Host "[FAIL] $($classifiedNotMasked.Count) sensitive classified columns have NO masking rules" -ForegroundColor Red
     if ($FailOnGaps) {
         exit 1
     }
