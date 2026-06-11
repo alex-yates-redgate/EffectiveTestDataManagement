@@ -87,12 +87,11 @@ Write-Host ""
 try {
     $WarningPreference = "Stop"
 
-    # Invoke-DbaDbDataMasking applies the masking rules from the JSON config
-    # Locale is required for dbatools to generate actual faker data
+    # Invoke-DbaDbDataMasking with verbose output to debug faker issue
     Invoke-DbaDbDataMasking `
         -SqlInstance $SqlInstance `
         -Database $Database `
-        -FilePath $normalizedConfigPath `
+        -FilePath $MaskingConfigPath `
         -Locale 'en_US' `
         -Confirm:$false `
         -EnableException `
