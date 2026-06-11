@@ -13,13 +13,18 @@ if (-not (Test-Path $userLibPath)) {
 
 # Download Bogus NuGet package
 $bogusUrl = "https://globalcdn.nuget.org/packages/bogus.35.5.1.nupkg"
-$bogusZip = Join-Path $env:TEMP "bogus.35.5.1.nupkg"
+$bogusNupkg = Join-Path $env:TEMP "bogus.35.5.1.nupkg"
+$bogusZip = Join-Path $env:TEMP "bogus.35.5.1.zip"  # Rename for extraction
 $bogusExtractPath = Join-Path $env:TEMP "bogus-extract"
 
 Write-Host "Downloading Bogus v35.5.1..." -ForegroundColor Yellow
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-Invoke-WebRequest -Uri $bogusUrl -OutFile $bogusZip -ErrorAction Stop
+Invoke-WebRequest -Uri $bogusUrl -OutFile $bogusNupkg -ErrorAction Stop
 Write-Host "Downloaded!" -ForegroundColor Green
+
+# Rename .nupkg to .zip for extraction (they're the same format)
+Write-Host "Preparing for extraction..." -ForegroundColor Yellow
+Rename-Item -Path $bogusNupkg -NewName (Split-Path $bogusZip -Leaf) -Force
 
 Write-Host "Extracting..." -ForegroundColor Yellow
 if (Test-Path $bogusExtractPath) {
