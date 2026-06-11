@@ -1,19 +1,22 @@
 # Validate-Classifications.ps1
 # ===========================
-# CI/CD validation: Ensures all expected sensitive columns are classified
+# CI/CD validation with two critical checks:
+# 1. No unclassified columns (catches new columns that weren't tagged)
+# 2. All classified sensitive columns have masking rules (catches incomplete masking config)
 # This script is called by the Azure DevOps pipeline after migrations
 # ===========================
 
 param (
     [string]$SqlInstance = "localhost",
     [string]$Database = "Northwind_Build",
-    [switch]$FailOnMissing = $true
+    [string]$MaskingConfigPath = "$PSScriptRoot\..\masking\masking-config.json",
+    [switch]$FailOnIssues = $true
 )
 
 $ErrorActionPreference = "Stop"
 
 Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "  Classification Validation" -ForegroundColor Cyan
+Write-Host "  Classification & Masking Validation" -ForegroundColor Cyan
 Write-Host "  Database: $Database" -ForegroundColor Cyan
 Write-Host "=============================================" -ForegroundColor Cyan
 Write-Host ""
@@ -21,46 +24,25 @@ Write-Host ""
 Import-Module dbatools -Force
 
 # ============================================
-# Define the expected sensitive columns
-# This is the "golden list" that must all be classified
+# TEST 1: Check for UNCLASSIFIED columns
 # ============================================
-$expectedSensitiveColumns = @(
-    # Customers
-    "Sales.Customers.ContactName",
-    "Sales.Customers.Address",
-    "Sales.Customers.PostalCode",
-    "Sales.Customers.Phone",
-    "Sales.Customers.Fax",
-    "Sales.Customers.Email",
-    
-    # Employees
-    "HR.Employees.FirstName",
-    "HR.Employees.LastName",
-    "HR.Employees.BirthDate",
-    "HR.Employees.Address",
-    "HR.Employees.PostalCode",
-    "HR.Employees.HomePhone",
-    "HR.Employees.Email",
-    "HR.Employees.SSN",
-    
-    # Suppliers
-    "Inventory.Suppliers.ContactName",
-    "Inventory.Suppliers.Address",
-    "Inventory.Suppliers.PostalCode",
-    "Inventory.Suppliers.Phone",
-    "Inventory.Suppliers.Fax",
-    
-    # Orders
-    "Sales.Orders.ShipName",
-    "Sales.Orders.ShipAddress",
-    "Sales.Orders.ShipPostalCode"
-)
+Write-Host "[TEST 1] Checking for unclassified columns..." -ForegroundColor White
 
-# ============================================
-# Get current classifications from the database
-# ============================================
-Write-Host "Querying current classifications..." -ForegroundColor White
+$allColumnsQuery = @"
+SELECT 
+    SCHEMA_NAME(t.schema_id) AS SchemaName,
+    t.name AS TableName,
+    c.name AS ColumnName,
+    SCHEMA_NAME(t.schema_id) + '.' + t.name + '.' + c.name AS FullColumnName
+FROM sys.columns c
+JOIN sys.tables t ON c.object_id = t.object_id
+WHERE SCHEMA_NAME(t.schema_id) IN ('Sales', 'HR', 'Inventory', 'Shipping')
+ORDER BY SchemaName, TableName, ColumnName
+"@
 
+$allColumns = Invoke-DbaQuery -SqlInstance $SqlInstance -Database $Database -Query $allColumnsQuery
+
+# Get classified columns
 $classificationQuery = @"
 SELECT 
     SCHEMA_NAME(t.schema_id) AS SchemaName,
@@ -75,77 +57,120 @@ JOIN sys.tables t ON c.object_id = t.object_id
 ORDER BY SchemaName, TableName, ColumnName
 "@
 
-$currentClassifications = Invoke-DbaQuery -SqlInstance $SqlInstance -Database $Database -Query $classificationQuery
+$classifiedColumns = Invoke-DbaQuery -SqlInstance $SqlInstance -Database $Database -Query $classificationQuery
 
-# Build a list of currently classified columns
-$classifiedColumns = @()
-foreach ($row in $currentClassifications) {
-    $classifiedColumns += $row.FullColumnName
-}
-
-Write-Host ""
-Write-Host "Found $($classifiedColumns.Count) classified columns" -ForegroundColor Green
-Write-Host ""
-
-# ============================================
-# Compare expected vs actual
-# ============================================
-$missingClassifications = @()
-$extraClassifications = @()
-
-# Check for missing (expected but not classified)
-foreach ($expected in $expectedSensitiveColumns) {
-    if ($expected -notin $classifiedColumns) {
-        $missingClassifications += $expected
+# Build classified set
+$classifiedSet = @{}
+foreach ($row in $classifiedColumns) {
+    $classifiedSet[$row.FullColumnName] = @{
+        InformationType = $row.InformationType
+        SensitivityLabel = $row.SensitivityLabel
     }
 }
 
-# Check for extra (classified but not expected) - these are warnings, not failures
-foreach ($classified in $classifiedColumns) {
-    if ($classified -notin $expectedSensitiveColumns) {
-        $extraClassifications += $classified
-    }
-}
-
-# ============================================
-# Report results
-# ============================================
-Write-Host "=============================================" -ForegroundColor Cyan
-Write-Host "  Validation Results" -ForegroundColor Cyan
-Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host "  Total columns in schema: $($allColumns.Count)"
+Write-Host "  Classified columns: $($classifiedSet.Count)"
 Write-Host ""
 
-if ($missingClassifications.Count -gt 0) {
-    Write-Host "[FAIL] Missing classifications ($($missingClassifications.Count)):" -ForegroundColor Red
-    foreach ($missing in $missingClassifications) {
-        Write-Host "       - $missing" -ForegroundColor Red
+# Find unclassified
+$unclassifiedColumns = @()
+foreach ($col in $allColumns) {
+    if ($col.FullColumnName -notin $classifiedSet.Keys) {
+        $unclassifiedColumns += $col
     }
-    Write-Host ""
 }
 
-if ($extraClassifications.Count -gt 0) {
-    Write-Host "[INFO] Additional classifications found ($($extraClassifications.Count)):" -ForegroundColor Yellow
-    foreach ($extra in $extraClassifications) {
-        Write-Host "       + $extra" -ForegroundColor Yellow
-    }
-    Write-Host ""
-}
+$test1Pass = $unclassifiedColumns.Count -eq 0
 
-if ($missingClassifications.Count -eq 0) {
-    Write-Host "[PASS] All expected sensitive columns are classified!" -ForegroundColor Green
-    Write-Host ""
-    
-    # Show summary table
-    Write-Host "Classified columns:" -ForegroundColor Cyan
-    $currentClassifications | Format-Table -Property SchemaName, TableName, ColumnName, InformationType, SensitivityLabel -AutoSize
+if ($test1Pass) {
+    Write-Host "[PASS] All $($allColumns.Count) columns are classified!" -ForegroundColor Green
+} else {
+    Write-Host "[FAIL] Found $($unclassifiedColumns.Count) unclassified columns:" -ForegroundColor Red
+    foreach ($col in $unclassifiedColumns) {
+        Write-Host "       - $($col.FullColumnName)" -ForegroundColor Red
+    }
 }
+Write-Host ""
 
 # ============================================
-# Exit with appropriate code
+# TEST 2: Check for CLASSIFIED but UNMASKED columns
 # ============================================
-if ($missingClassifications.Count -gt 0 -and $FailOnMissing) {
-    Write-Host "##vso[task.logissue type=error]Classification validation failed: $($missingClassifications.Count) columns missing classifications" 
+Write-Host "[TEST 2] Checking for classified columns without masking rules..." -ForegroundColor White
+
+# Load masking config
+if (-not (Test-Path $MaskingConfigPath)) {
+    Write-Host "[FAIL] Masking config not found at $MaskingConfigPath" -ForegroundColor Red
     exit 1
 }
 
-exit 0
+$maskingConfig = Get-Content $MaskingConfigPath | ConvertFrom-Json
+
+# Build masking coverage set
+$maskedColumns = @{}
+foreach ($table in $maskingConfig.Tables) {
+    $schema = $table.Schema
+    $tableName = $table.Name
+    
+    foreach ($column in $table.Columns) {
+        $fullName = "$schema.$tableName.$($column.Name)"
+        $maskedColumns[$fullName] = $true
+    }
+}
+
+Write-Host "  Masking config covers: $($maskedColumns.Count) columns"
+Write-Host ""
+
+# Find classified but not masked
+$classifiedButNotMasked = @()
+foreach ($fullName in $classifiedSet.Keys) {
+    $classification = $classifiedSet[$fullName]
+    
+    # Only check "sensitive" classifications (excluding "Not Sensitive")
+    if ($classification.SensitivityLabel -ne "Not Sensitive" -and $fullName -notin $maskedColumns) {
+        $classifiedButNotMasked += @{
+            Column = $fullName
+            Label = $classification.SensitivityLabel
+            InformationType = $classification.InformationType
+        }
+    }
+}
+
+$test2Pass = $classifiedButNotMasked.Count -eq 0
+
+if ($test2Pass) {
+    Write-Host "[PASS] All sensitive classified columns have masking rules!" -ForegroundColor Green
+} else {
+    Write-Host "[FAIL] Found $($classifiedButNotMasked.Count) classified but unmasked columns:" -ForegroundColor Red
+    foreach ($item in $classifiedButNotMasked) {
+        Write-Host "       - $($item.Column) [$($item.Label)]" -ForegroundColor Red
+    }
+}
+Write-Host ""
+
+# ============================================
+# Summary
+# ============================================
+Write-Host "=============================================" -ForegroundColor Cyan
+Write-Host "  Validation Summary" -ForegroundColor Cyan
+Write-Host "=============================================" -ForegroundColor Cyan
+
+if ($test1Pass -and $test2Pass) {
+    Write-Host "[SUCCESS] All validation tests passed!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Your data is appropriately tagged and masking rules are complete." -ForegroundColor Green
+    Write-Host ""
+    exit 0
+} else {
+    Write-Host "[FAILURE] Validation issues found:" -ForegroundColor Red
+    if (-not $test1Pass) {
+        Write-Host "  • Unclassified columns detected (new column added without classification?)" -ForegroundColor Red
+    }
+    if (-not $test2Pass) {
+        Write-Host "  • Sensitive columns classified but no masking rule (incomplete masking config?)" -ForegroundColor Red
+    }
+    Write-Host ""
+    if ($FailOnIssues) {
+        Write-Host "##vso[task.logissue type=error]Validation failed - see details above"
+        exit 1
+    }
+}

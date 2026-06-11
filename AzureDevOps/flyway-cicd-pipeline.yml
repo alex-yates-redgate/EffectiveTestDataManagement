@@ -92,37 +92,21 @@ stages:
                     -locations="filesystem:$(WORKING_DIRECTORY)\migrations" `
                     -baselineOnMigrate=true
 
-          # Step 4: Apply Classifications (simulates what should happen in real workflow)
+          # Step 4: Validate Classifications & Masking Coverage (TWO CRITICAL CHECKS!)
+          # NOTE: Classifications are now applied by Flyway migration V002__Add_Sensitivity_Classifications.sql
+          # This step validates that:
+          #   TEST 1: No unclassified columns (catches new columns without classification)
+          #   TEST 2: All sensitive classified columns have masking rules (catches incomplete masking config)
           - task: PowerShell@2
-            displayName: 'Apply Data Classifications'
-            inputs:
-              targetType: 'inline'
-              script: |
-                & "$(WORKING_DIRECTORY)\scripts\Apply-Classifications.ps1" `
-                    -SqlInstance "localhost" `
-                    -Database "Northwind_Build"
-
-          # Step 5: Validate Classifications (THE KEY STEP!)
-          - task: PowerShell@2
-            displayName: 'Validate All Columns Classified'
+            displayName: 'Validate Classifications & Masking'
             inputs:
               targetType: 'inline'
               script: |
                 & "$(WORKING_DIRECTORY)\scripts\Validate-Classifications.ps1" `
                     -SqlInstance "localhost" `
                     -Database "Northwind_Build" `
-                    -FailOnMissing
-
-          # Step 6: Cross-reference with masking config
-          - task: PowerShell@2
-            displayName: 'Validate Masking Coverage'
-            inputs:
-              targetType: 'inline'
-              script: |
-                & "$(WORKING_DIRECTORY)\scripts\Compare-ClassificationToMasking.ps1" `
-                    -SqlInstance "localhost" `
-                    -Database "Northwind_Build" `
-                    -FailOnGaps
+                    -MaskingConfigPath "$(WORKING_DIRECTORY)\masking\masking-config.json" `
+                    -FailOnIssues
 
           # Step 7: Publish artifacts for deployment stages
           - task: CopyFiles@2
