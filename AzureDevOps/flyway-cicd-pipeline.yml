@@ -68,15 +68,10 @@ stages:
                     Remove-DbaDatabase -SqlInstance $sqlInstance -Database $dbName -Confirm:$false
                 }
                 
-                # Create fresh database
+                # Create fresh empty database (Flyway will build schema via migrations)
                 Write-Host "Creating $dbName..."
                 New-DbaDatabase -SqlInstance $sqlInstance -Name $dbName | Out-Null
-                
-                # Apply base schema
-                Write-Host "Applying schema..."
-                $schemaScript = Get-Content -Path "$(WORKING_DIRECTORY)\database\Northwind-Schema.sql" -Raw
-                Invoke-DbaQuery -SqlInstance $sqlInstance -Database $dbName -Query $schemaScript
-                
+
                 Write-Host "Build database ready!"
 
           # Step 3: Run Flyway migrate
@@ -85,6 +80,13 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
+                # Ensure build runs from a clean database state every time
+                & flyway `
+                    clean `
+                    -environment="build" `
+                    -configFiles="$(WORKING_DIRECTORY)\flyway.toml" `
+                    -locations="filesystem:$(WORKING_DIRECTORY)\migrations"
+
                 & flyway `
                     info migrate info `
                     -environment="build" `
@@ -209,13 +211,4 @@ stages:
                 Write-Host "  Production deployment complete!" -ForegroundColor Green
                 Write-Host "=============================================" -ForegroundColor Green
 
-          # Apply classifications to Prod
-          - task: PowerShell@2
-            displayName: 'Apply Classifications to Prod'
-            inputs:
-              targetType: 'inline'
-              script: |
-                $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
-                & "$artifactPath\scripts\Apply-Classifications.ps1" `
-                    -SqlInstance "localhost" `
-                    -Database "Northwind_Prod"
+          # Classifications are applied by Flyway migrations (V002)

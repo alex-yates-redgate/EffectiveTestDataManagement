@@ -126,7 +126,7 @@ foreach ($fullName in $classifiedSet.Keys) {
     $classification = $classifiedSet[$fullName]
     
     # Only check "sensitive" classifications (excluding "Not Sensitive")
-    if ($classification.SensitivityLabel -ne "Not Sensitive" -and $fullName -notin $maskedColumns) {
+    if ($classification.SensitivityLabel -ne "Not Sensitive" -and -not $maskedColumns.ContainsKey($fullName)) {
         $classifiedButNotMasked += @{
             Column = $fullName
             Label = $classification.SensitivityLabel
