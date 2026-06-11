@@ -25,6 +25,19 @@ Write-Host ""
 
 Import-Module dbatools -Force
 
+# Pre-load Bogus faker library so dbatools masking can use it
+$bogusLibPath = Join-Path $HOME ".dbatools\library"
+if (Test-Path $bogusLibPath) {
+    Write-Host "Loading Bogus faker library..." -ForegroundColor Gray
+    $bogusDll = Join-Path $bogusLibPath "Bogus.dll"
+    if (Test-Path $bogusDll) {
+        [System.Reflection.Assembly]::LoadFrom($bogusDll) | Out-Null
+        Write-Host "[OK] Bogus.dll loaded" -ForegroundColor Green
+    } else {
+        Write-Host "[WARNING] Bogus.dll not found at $bogusDll" -ForegroundColor Yellow
+    }
+}
+
 # ============================================
 # Validate masking config exists
 # ============================================
