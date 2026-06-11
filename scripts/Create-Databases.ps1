@@ -22,6 +22,13 @@ $databases = @(
     @{ Name = "Northwind_Prod"; LoadData = $true }
 )
 
+# Find flyway on PATH
+$flywayCmd = Get-Command flyway -ErrorAction SilentlyContinue
+if (-not $flywayCmd) {
+    Write-Host "WARNING: flyway not found in PATH - skipping baseline stamping" -ForegroundColor Yellow
+    Write-Host "         Run Install-Prerequisites.ps1 first if you want baseline stamping." -ForegroundColor Yellow
+}
+
 foreach ($db in $databases) {
     $dbName = $db.Name
     
@@ -47,6 +54,19 @@ foreach ($db in $databases) {
         Write-Host "    Loading production data..." -ForegroundColor White
         $dataScript = Get-Content -Path "$scriptRoot\database\Northwind-Data.sql" -Raw
         Invoke-DbaQuery -SqlInstance $SqlInstance -Database $dbName -Query $dataScript
+    }
+    
+    # Stamp the Flyway schema history table at version 001 so the pipeline
+    # knows the schema already exists and won't try to re-run V001
+    if ($flywayCmd) {
+        Write-Host "    Baselining Flyway history at version 001..." -ForegroundColor White
+        $environment = $dbName -replace 'Northwind_', '' | ForEach-Object { $_.ToLower() }
+        & flyway baseline `
+            -environment="$environment" `
+            -configFiles="$scriptRoot\flyway.toml" `
+            -locations="filesystem:$scriptRoot\migrations" `
+            -baselineVersion="001" `
+            -baselineDescription="Baseline"
     }
     
     Write-Host "  [OK] $dbName created" -ForegroundColor Green
