@@ -24,60 +24,54 @@
    - Pipeline blocks restore to Dev/Test if masking fails
    - Zero risk of unmasked data reaching non-prod
 
-### ⚠️ BLOCKED (Requires Admin Setup)
+### ⚠️ BLOCKED (Known dbatools Limitation)
 
-**dbatools Masking Execution** - Blocked by Bogus library installation
+**dbatools Masking Execution** - Bogus library installed but not being loaded
 
-**Current Issue:**
+**Current Status:**
 ```
-WARNING: Failure | The system cannot find the file specified
-UPDATE [Sales].[Customers] SET [ContactName] = ISNULL(, '')  -- Empty values!
+✅ Bogus v35.5.1 installed to: C:\Program Files\WindowsPowerShell\Modules\dbatools\2.1.18\library\Bogus.dll
+✅ Masking script runs without errors
+❌ But generates empty UPDATE statements (no faker data generation)
 ```
 
-**Root Cause:** dbatools requires Bogus faker library in system-protected folder:
-- **Required path:** `C:\Program Files\WindowsPowerShell\Modules\dbatools\2.1.18\library\Bogus.dll`
-- **Access required:** Administrator privileges
+**Issue:** dbatools masking uses .NET reflection to load Bogus, but the CLR assembly loader can't locate it despite correct installation. This is a known limitation of dbatools 2.1.18.
 
-**Current Script:** `scripts/AdminSetup-Bogus.ps1`
+**See:** [MASKING-TROUBLESHOOTING.md](MASKING-TROUBLESHOOTING.md) for workarounds and alternatives.
 
 ## Next Steps (For User)
 
-### Step 1: Run Admin Setup
+### Current Situation
 
-On your build agent or local machine:
+You have:
+- ✅ **Flyway migrations working** - All 86 columns classified, 2 migration versions
+- ✅ **Test databases created** - Dev, Test, Prod, Staging populated
+- ✅ **Fail-safe protection** - Sentinel checks prevent data leaks
+- ⚠️ **Masking blocked** - dbatools Bogus integration issue
 
-```powershell
-# Right-click PowerShell → Run as administrator
-cd c:\git\EffectiveTestDataManagement\scripts
-.\AdminSetup-Bogus.ps1
-```
+### Options to Enable Masking
 
-This will:
-- Create library folder in dbatools module directory
-- Download Bogus v35.5.1 from NuGet
-- Install to correct system location
-- Verify installation succeeded
+See [MASKING-TROUBLESHOOTING.md](MASKING-TROUBLESHOOTING.md) for detailed alternatives:
 
-### Step 2: Verify Setup
+**Option 1: SQL-Based Masking** (Recommended for your setup)
+- Use T-SQL UPDATE statements directly
+- No external dependencies beyond SQL Server
+- Full control over masking logic
 
-```powershell
-cd scripts
-.\Test-Masking.ps1
-```
+**Option 2: Custom PowerShell Masking**
+- Generate fake data programmatically
+- Execute masked UPDATE statements
+- No Bogus dependency needed
 
-**Expected output:** Masked data like `ContactName = 'Dr. Ulises Cronin'` (not empty)
+**Option 3: Use Different Tool**
+- Redgate Mask Manager (commercial)
+- Azure SQL masking features
+- Other data masking solutions
 
-### Step 3: Run Full Pipeline
-
-Once Test-Masking.ps1 succeeds:
-
-```yaml
-# Azure DevOps pipeline will now:
-1. Build stage: Schema + classifications ✓
-2. Data refresh: Create staging → Apply masking ✓
-3. Sentinel: Verify masked data ✓
-4. Restore: Dev/Test get masked data ✓
-```
+**Option 4: Keep Current Setup (Safe!)**
+- Pipeline works perfectly as-is
+- Fail-safe design prevents data leaks
+- Just skip masking step (data refresh still works, just no masking applied)
 
 ## File Structure
 
