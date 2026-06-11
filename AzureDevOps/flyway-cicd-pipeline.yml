@@ -87,13 +87,15 @@ stages:
                     clean `
                     -environment="build" `
                     -configFiles="$(WORKING_DIRECTORY)\flyway.toml" `
-                    -locations="filesystem:$(WORKING_DIRECTORY)\migrations"
+                    -locations="filesystem:$(WORKING_DIRECTORY)\migrations" `
+                    -schemas="dbo,Sales,HR,Inventory,Shipping"
 
                 & flyway `
                     info migrate info `
                     -environment="build" `
                     -configFiles="$(WORKING_DIRECTORY)\flyway.toml" `
                     -locations="filesystem:$(WORKING_DIRECTORY)\migrations" `
+                    -schemas="dbo,Sales,HR,Inventory,Shipping" `
                     -baselineOnMigrate=true
 
           # Step 4: Validate Classifications & Masking Coverage (TWO CRITICAL CHECKS!)
@@ -160,6 +162,7 @@ stages:
                     -environment="test" `
                     -configFiles="$artifactPath\flyway.toml" `
                     -locations="filesystem:$artifactPath\migrations" `
+                    -schemas="dbo,Sales,HR,Inventory,Shipping" `
                     -baselineOnMigrate=true
 
 # ============================================
@@ -206,6 +209,7 @@ stages:
                     -environment="prod" `
                     -configFiles="$artifactPath\flyway.toml" `
                     -locations="filesystem:$artifactPath\migrations" `
+                    -schemas="dbo,Sales,HR,Inventory,Shipping" `
                     -baselineOnMigrate=true
                 
                 Write-Host ""
