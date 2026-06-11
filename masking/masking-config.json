@@ -1,187 +1,360 @@
 {
-    "Name": "Northwind Masking Configuration",
-    "Type": "DataMaskingConfig",
-    "Tables": [
+  "Name": "Northwind Masking Configuration",
+  "Type": "DataMaskingConfiguration",
+  "Tables": [
+    {
+      "Schema": "Sales",
+      "Name": "Customers",
+      "Columns": [
         {
-            "Schema": "Sales",
-            "Name": "Customers",
-            "Columns": [
-                {
-                    "Name": "ContactName",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Name",
-                    "SubType": "FullName",
-                    "Nullable": true
-                },
-                {
-                    "Name": "Address",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "StreetAddress",
-                    "Nullable": true
-                },
-                {
-                    "Name": "PostalCode",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "Zipcode",
-                    "Nullable": true
-                },
-                {
-                    "Name": "Phone",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Shuffle",
-                    "SubType": null,
-                    "Nullable": true
-                },
-                {
-                    "Name": "Fax",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Shuffle",
-                    "SubType": null,
-                    "Nullable": true
-                },
-                {
-                    "Name": "Email",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Internet",
-                    "SubType": "Email",
-                    "Nullable": true
-                }
-            ]
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Name",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "ContactName",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "FullName"
         },
         {
-            "Schema": "HR",
-            "Name": "Employees",
-            "Columns": [
-                {
-                    "Name": "FirstName",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Name",
-                    "SubType": "FirstName",
-                    "Nullable": false
-                },
-                {
-                    "Name": "LastName",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Name",
-                    "SubType": "LastName",
-                    "Nullable": false
-                },
-                {
-                    "Name": "BirthDate",
-                    "ColumnType": "datetime",
-                    "MaskingType": "Date",
-                    "SubType": "Past",
-                    "Nullable": true,
-                    "Min": "1950-01-01",
-                    "Max": "2000-12-31"
-                },
-                {
-                    "Name": "Address",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "StreetAddress",
-                    "Nullable": true
-                },
-                {
-                    "Name": "PostalCode",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "Zipcode",
-                    "Nullable": true
-                },
-                {
-                    "Name": "HomePhone",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Shuffle",
-                    "SubType": null,
-                    "Nullable": true
-                },
-                {
-                    "Name": "Email",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Internet",
-                    "SubType": "Email",
-                    "Nullable": true
-                },
-                {
-                    "Name": "SSN",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "RandomString",
-                    "SubType": null,
-                    "Nullable": true,
-                    "Format": "###-##-####"
-                }
-            ]
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Address",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "StreetAddress"
         },
         {
-            "Schema": "Inventory",
-            "Name": "Suppliers",
-            "Columns": [
-                {
-                    "Name": "ContactName",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Name",
-                    "SubType": "FullName",
-                    "Nullable": true
-                },
-                {
-                    "Name": "Address",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "StreetAddress",
-                    "Nullable": true
-                },
-                {
-                    "Name": "PostalCode",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "Zipcode",
-                    "Nullable": true
-                },
-                {
-                    "Name": "Phone",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Shuffle",
-                    "SubType": null,
-                    "Nullable": true
-                },
-                {
-                    "Name": "Fax",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Shuffle",
-                    "SubType": null,
-                    "Nullable": true
-                }
-            ]
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "PostalCode",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Zipcode"
         },
         {
-            "Schema": "Sales",
-            "Name": "Orders",
-            "Columns": [
-                {
-                    "Name": "ShipName",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Name",
-                    "SubType": "FullName",
-                    "Nullable": true
-                },
-                {
-                    "Name": "ShipAddress",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "StreetAddress",
-                    "Nullable": true
-                },
-                {
-                    "Name": "ShipPostalCode",
-                    "ColumnType": "nvarchar",
-                    "MaskingType": "Address",
-                    "SubType": "Zipcode",
-                    "Nullable": true
-                }
-            ]
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Phone",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Phone",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "PhoneNumber"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Phone",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Fax",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "PhoneNumber"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Internet",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Email",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Email"
         }
-    ]
+      ]
+    },
+    {
+      "Schema": "HR",
+      "Name": "Employees",
+      "Columns": [
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Name",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "FirstName",
+          "Nullable": false,
+          "KeepNull": true,
+          "SubType": "FirstName"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Name",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "LastName",
+          "Nullable": false,
+          "KeepNull": true,
+          "SubType": "LastName"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "datetime",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Date",
+          "MaxValue": "2000-12-31",
+          "MinValue": "1950-01-01",
+          "Name": "BirthDate",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Past"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Address",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "StreetAddress"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "PostalCode",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Zipcode"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Phone",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "HomePhone",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "PhoneNumber"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Internet",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Email",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Email"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": "###-##-####",
+          "MaskingType": "Random",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "SSN",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "String2"
+        }
+      ]
+    },
+    {
+      "Schema": "Inventory",
+      "Name": "Suppliers",
+      "Columns": [
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Name",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "ContactName",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "FullName"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Address",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "StreetAddress"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "PostalCode",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Zipcode"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Phone",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Phone",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "PhoneNumber"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Phone",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "Fax",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "PhoneNumber"
+        }
+      ]
+    },
+    {
+      "Schema": "Sales",
+      "Name": "Orders",
+      "Columns": [
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Name",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "ShipName",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "FullName"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "ShipAddress",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "StreetAddress"
+        },
+        {
+          "Action": null,
+          "CharacterString": null,
+          "ColumnType": "nvarchar",
+          "Composite": false,
+          "Deterministic": false,
+          "Format": null,
+          "MaskingType": "Address",
+          "MaxValue": null,
+          "MinValue": null,
+          "Name": "ShipPostalCode",
+          "Nullable": true,
+          "KeepNull": true,
+          "SubType": "Zipcode"
+        }
+      ]
+    }
+  ]
 }
