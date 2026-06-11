@@ -33,6 +33,9 @@ if (-not (Test-Path $MaskingConfigPath)) {
     exit 1
 }
 
+Write-Host "Using masking config: $MaskingConfigPath" -ForegroundColor Cyan
+Write-Host ""
+
 Write-Host "Using masking config: $MaskingConfigPath" -ForegroundColor White
 Write-Host ""
 
@@ -41,55 +44,8 @@ Write-Host ""
 # ============================================
 $maskingConfig = Get-Content -Path $MaskingConfigPath -Raw | ConvertFrom-Json
 
-# dbatools requires Type=DataMaskingConfiguration and a strict set of column properties.
-$normalizedConfig = [ordered]@{
-    Name = $maskingConfig.Name
-    Type = "DataMaskingConfiguration"
-    Tables = @()
-}
-
-foreach ($table in $maskingConfig.Tables) {
-    $normalizedTable = [ordered]@{
-        Schema = $table.Schema
-        Name = $table.Name
-        Columns = @()
-    }
-
-    foreach ($column in $table.Columns) {
-        $normalizedColumn = [ordered]@{
-            Action = $null
-            CharacterString = $null
-            ColumnType = $column.ColumnType
-            Composite = $false
-            Deterministic = $false
-            Format = $column.Format
-            MaskingType = $column.MaskingType
-            MaxValue = $column.MaxValue
-            MinValue = $column.MinValue
-            Name = $column.Name
-            Nullable = $column.Nullable
-            KeepNull = $true
-            SubType = $column.SubType
-        }
-
-        # Backward compatibility with older Min/Max property names.
-        if (-not $normalizedColumn.MaxValue -and $column.PSObject.Properties.Name -contains 'Max') {
-            $normalizedColumn.MaxValue = $column.Max
-        }
-        if (-not $normalizedColumn.MinValue -and $column.PSObject.Properties.Name -contains 'Min') {
-            $normalizedColumn.MinValue = $column.Min
-        }
-
-        $normalizedTable.Columns += $normalizedColumn
-    }
-
-    $normalizedConfig.Tables += $normalizedTable
-}
-
-$normalizedConfigPath = Join-Path $env:TEMP ("masking-config-normalized-{0}.json" -f ([guid]::NewGuid()))
-$normalizedConfig | ConvertTo-Json -Depth 12 | Set-Content -Path $normalizedConfigPath -Encoding UTF8
-
-Write-Host "Using normalized masking config: $normalizedConfigPath" -ForegroundColor White
+# Use the masking config as-is without normalization (normalization was stripping faker parameters)
+$normalizedConfigPath = $MaskingConfigPath
 
 try {
     $configValidation = Test-DbaDbDataMaskingConfig -FilePath $normalizedConfigPath -EnableException -ErrorAction Stop
@@ -110,7 +66,8 @@ Write-Host ""
 # ============================================
 # Show what will be masked
 # ============================================
-$maskingConfig = Get-Content -Path $normalizedConfigPath -Raw | ConvertFrom-Json
+# Reload config for display (already validated)
+$maskingConfig = Get-Content -Path $MaskingConfigPath -Raw | ConvertFrom-Json
 
 Write-Host "Tables to be masked:" -ForegroundColor Cyan
 foreach ($table in $maskingConfig.Tables) {
@@ -162,11 +119,6 @@ SELECT
 catch {
     Write-Host "[ERROR] Masking failed: $($_.Exception.Message)" -ForegroundColor Red
     exit 1
-}
-finally {
-    if (Test-Path $normalizedConfigPath) {
-        Remove-Item $normalizedConfigPath -Force -ErrorAction SilentlyContinue
-    }
 }
 
 # ============================================
