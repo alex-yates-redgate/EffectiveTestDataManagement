@@ -70,7 +70,7 @@ $dlls = Get-ChildItem $sourcePath -Filter "*.dll" -ErrorAction Stop
 foreach ($dll in $dlls) {
     $target = Join-Path $libraryPath $dll.Name
     Copy-Item $dll.FullName -Destination $target -Force
-    Write-Host "  ✓ $($dll.Name)" -ForegroundColor Green
+    Write-Host "  [OK] $($dll.Name)" -ForegroundColor Green
 }
 
 # Verify
