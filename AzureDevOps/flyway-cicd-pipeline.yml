@@ -24,7 +24,6 @@ pool:
 
 variables:
   WORKING_DIRECTORY: $(System.DefaultWorkingDirectory)
-  FLYWAY_INSTALL_DIRECTORY: 'C:\Flyway'
 
 # ============================================
 # BUILD STAGE
@@ -42,12 +41,12 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
-                if (Test-Path $flywayPath) {
-                    Write-Host "Flyway found at $flywayPath"
-                    & $flywayPath --version
+                $flywayCmd = Get-Command flyway -ErrorAction SilentlyContinue
+                if ($flywayCmd) {
+                    Write-Host "Flyway found: $($flywayCmd.Source)"
+                    & flyway --version
                 } else {
-                    Write-Host "##vso[task.logissue type=error]Flyway not found. Run Setup-Demo.ps1 first."
+                    Write-Host "##vso[task.logissue type=error]Flyway not found in PATH. Run Setup-Demo.ps1 first."
                     exit 1
                 }
 
@@ -86,9 +85,7 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
-                
-                & $flywayPath `
+                & flyway \
                     info migrate info `
                     -environment="build" `
                     -configFiles="$(WORKING_DIRECTORY)\flyway.toml" `
@@ -168,10 +165,9 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
                 $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
                 
-                & $flywayPath `
+                & flyway \
                     info migrate info `
                     -environment="test" `
                     -configFiles="$artifactPath\flyway.toml" `
@@ -215,10 +211,9 @@ stages:
             inputs:
               targetType: 'inline'
               script: |
-                $flywayPath = "$(FLYWAY_INSTALL_DIRECTORY)\flyway.cmd"
                 $artifactPath = "$(System.ArtifactsDirectory)\flyway-artifacts"
                 
-                & $flywayPath `
+                & flyway \
                     info migrate info `
                     -environment="prod" `
                     -configFiles="$artifactPath\flyway.toml" `
